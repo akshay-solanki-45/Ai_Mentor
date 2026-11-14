@@ -6,7 +6,7 @@ The Frontend Admin application is the administrative control panel of the AI Men
 
 The admin frontend communicates with the dedicated backendAdmin API server and provides secure access control for administrators and super administrators.
 
-The system is designed using modular React architecture with reusable UI components, JWT-based access checks, responsive dashboard layouts, centralized API communication, and pathname-based page rendering.
+The system is designed using modular React architecture with reusable UI components, protected admin routes, responsive dashboard layouts, centralized API communication, and scalable page based rendering.
 
 ---
 
@@ -26,17 +26,14 @@ The system is designed using modular React architecture with reusable UI compone
         │                      │                      │
         ▼                      ▼                      ▼
 ┌────────────────┐   ┌────────────────┐   ┌────────────────┐
-│ BrowserRouter  │   │ Theme/Toast    │   │ UI Components  │
-│                │   │ Contexts       │                  │
+│ React Router   │   │ Admin Context  │   │ UI Components  │
 └────────────────┘   └────────────────┘   └────────────────┘
         │                      │                      │
         └──────────────────────┼──────────────────────┘
                                │
                                ▼
                     ┌────────────────────────┐
-                    │ /api fetch + Axios    │
-                    │ calls through Vite    │
-                    │ proxy                 │
+                    │ Axios API Service Layer│
                     └──────────┬─────────────┘
                                │
                                ▼
@@ -59,28 +56,27 @@ The frontend admin dashboard handles:
 - Payment tracking
 - Report moderation
 - Notification management
-- Dashboard metrics
-- Admin profile viewing
+- Dashboard analytics
+- Admin profile management
 - Theme settings
+- Platform management
 
 ---
 
 # Tech Stack
 
-| Category         | Technology                                            |
-| ---------------- | ----------------------------------------------------- |
-| Framework        | React 19                                              |
-| Build Tool       | Vite                                                  |
-| Routing          | React Router DOM                                      |
-| Styling          | Tailwind CSS                                          |
-| Icons            | Lucide React                                          |
-| HTTP Client      | Axios                                                 |
-| Notifications    | React Hot Toast                                       |
-| State Management | React Hooks + Context                                 |
-| Authentication   | `jwt-decode` + localStorage                           |
-| Data export      | ExcelJS, FileSaver, PapaParse, jsPDF, jsPDF-AutoTable |
-| API helpers      | Axios and the native Fetch API                        |
-| Utilities        | `jwt-decode` for token claims                         |
+| Category | Technology |
+|---|---|
+| Framework | React 19 |
+| Build Tool | Vite |
+| Routing | React Router DOM |
+| Styling | Tailwind CSS |
+| Icons | Lucide React |
+| HTTP Client | Axios |
+| Notifications | React Hot Toast |
+| Charts | Recharts |
+| State Management | React Hooks + Context |
+| Authentication | JWT |
 
 ---
 
@@ -89,24 +85,25 @@ The frontend admin dashboard handles:
 ```text
 frontendAdmin/
 ├── public/
-│   ├── upto.png
-│   └── US.png
 ├── src/
+│   ├── assets/
 │   ├── components/
+│   │   ├── layout/
 │   │   ├── common/
-│   │   └── layout/
+│   │   ├── charts/
+│   │   └── ui/
 │   ├── constants/
 │   ├── context/
-│   ├── data/
-│   ├── __tests__/
+│   ├── hooks/
 │   ├── pages/
+│   ├── services/
 │   ├── utils/
 │   ├── App.jsx
-│   ├── index.css
-│   └── main.jsx
+│   ├── main.jsx
+│   └── index.css
 ├── package.json
 ├── vite.config.js
-└── .env.example
+└── .env
 ```
 
 ---
@@ -117,19 +114,19 @@ frontendAdmin/
 main.jsx
     │
     ▼
-BrowserRouter + ThemeProvider
-    │
-    ▼
 <App />
     │
     ▼
-JWT role/expiry check
+React Router
     │
     ▼
-Pathname-to-page mapping
+Protected Routes
     │
     ▼
-Admin layout or login/not-found page
+Admin Layout
+    │
+    ▼
+Dashboard Pages
 ```
 
 ---
@@ -167,11 +164,10 @@ const PAGE_COMPONENTS = {
   reports: ReportsPage,
   profile: ProfilePage,
   settings: SettingsPage,
-  discussions: DiscussionsPage,
 };
 ```
 
-`App.jsx` reads `location.pathname`, selects the matching component, and renders it inside the shared layout. `/login` is handled separately, and unknown paths render `NotFoundPage`.
+The selected route dynamically renders the corresponding page component.
 
 Advantages:
 
@@ -184,7 +180,7 @@ Advantages:
 
 # Routing Architecture
 
-The app uses React Router DOM for `BrowserRouter`, `useLocation`, `useNavigate`, and redirects. It does not declare a separate `<Routes>`/`<Route>` table. `App.jsx` maps the pathname (without its leading slash) to a page component.
+The frontend admin uses React Router DOM.
 
 ---
 
@@ -194,10 +190,10 @@ The app uses React Router DOM for `BrowserRouter`, `useLocation`, `useNavigate`,
 Sidebar Navigation
          │
          ▼
-useNavigate() updates the browser path
+React Router Navigation
          │
          ▼
-App.jsx reads location.pathname
+Protected Admin Route
          │
          ▼
 Page Component Rendering
@@ -207,20 +203,17 @@ Page Component Rendering
 
 # Main Routes
 
-| Route        | Description         |
-| ------------ | ------------------- |
-| /login       | Admin login page    |
-| /dashboard   | Dashboard analytics |
-| /courses     | Course management   |
-| /users       | User management     |
+| Route | Description |
+|---|---|
+| /login | Admin login page |
+| /dashboard | Dashboard analytics |
+| /courses | Course management |
+| /users | User management |
 | /enrollments | Enrollment tracking |
-| /payments    | Payment monitoring  |
-| /reports     | Report moderation   |
-| /discussions | Discussion reviews  |
-| /profile     | Admin profile       |
-| /settings    | Dashboard settings  |
-
-`/profile` and `/settings` are available from the header and are not entries in the sidebar navigation. The sidebar navigation entries are dashboard, courses, users, enrollments, payments, reports, and discussions.
+| /payments | Payment monitoring |
+| /reports | Report moderation |
+| /profile | Admin profile |
+| /settings | Dashboard settings |
 
 ---
 
@@ -351,7 +344,16 @@ The header controls:
 
 # Dashboard System
 
-The dashboard fetches enrollment statistics and displays metric cards for total users, total courses, enrollments, and total revenue. Detailed charts and activity graphs are not implemented; the page currently shows a “Platform Insights Coming Soon” placeholder.
+The dashboard provides platform insights.
+
+Displayed data includes:
+
+- Total users
+- Total enrollments
+- Revenue metrics
+- Active courses
+- User growth
+- Platform activity
 
 ---
 
@@ -364,11 +366,28 @@ Dashboard Page
 Analytics Cards
       │
       ▼
-Insights placeholder
+Charts + Tables
       │
       ▼
-`/api/admin/enrollments?type=stats`
+Backend Analytics APIs
 ```
+
+---
+
+# Recharts Integration
+
+Charts include:
+
+- Revenue charts
+- Enrollment trends
+- User growth graphs
+- Activity statistics
+
+Purpose:
+
+- Data visualization
+- Better administrative insights
+- Monitoring platform performance
 
 ---
 
@@ -380,6 +399,7 @@ The course module handles:
 - Course creation
 - Course editing
 - Course deletion
+- Course analytics
 
 ---
 
@@ -389,7 +409,7 @@ The course module handles:
 Courses Page
       │
       ▼
-Fetch API requests through `src/utils/api.js`
+Axios API Requests
       │
       ▼
 Backend Course APIs
@@ -402,7 +422,7 @@ Course Table Rendering
 
 # Course Creation System
 
-The course builder supports:
+Admins can:
 
 - Add course titles
 - Add descriptions
@@ -480,7 +500,7 @@ The payment module tracks:
 
 The report system manages community moderation.
 
-The course editor supports:
+Admins can:
 
 - View reports
 - Resolve reports
@@ -545,13 +565,38 @@ Notification Rendering
 
 # Profile Management System
 
-The profile page fetches and displays the current admin’s name, email, role, and avatar. Its profile fields and save controls are read-only/disabled; profile updates are not implemented in the frontend.
+Admins can:
+
+- Update profile information
+- Change profile picture
+- Manage account details
+- Edit personal settings
 
 ---
 
 # Settings System
 
-The settings page provides password-change controls. Super admins see an explanatory restricted-action state; other admins can submit the current and new password to the admin API.
+The settings module handles:
+
+- Appearance settings
+- Notification preferences
+- Profile settings
+- Dashboard customization
+
+---
+
+# Dynamic Settings Rendering
+
+The settings page uses conditional rendering.
+
+```js
+switch (key) {
+  case "profile":
+    return <ProfilePanel />;
+}
+```
+
+This architecture reduces route duplication and improves maintainability.
 
 ---
 
@@ -582,7 +627,7 @@ Theme settings are stored locally.
 
 # API Communication Layer
 
-The frontend admin communicates with the backend using the native Fetch API through the shared helper and Axios for the settings password-change request.
+The frontend admin communicates using Axios.
 
 Responsibilities:
 
@@ -594,19 +639,17 @@ Responsibilities:
 
 ---
 
-# API Request Architecture
+# Axios Architecture
 
 ```text
 Dashboard Components
          │
          ▼
-Fetch helper or Axios
+Axios Service Layer
          │
          ▼
 Backend Admin APIs
 ```
-
-Most pages use `src/utils/api.js`, which calls the native Fetch API through the `/api` proxy and attaches the JWT when present. `SettingsPage.jsx` uses Axios directly for the password-change request.
 
 ---
 
@@ -736,15 +779,11 @@ Example routes:
 /dashboard
 /courses
 /users
-/enrollments
-/payments
 /reports
-/discussions
-/profile
 /settings
 ```
 
-These are top-level paths; the app does not render every page under `/dashboard`.
+Instead of rendering every page under `/dashboard`.
 
 Advantages:
 
@@ -760,14 +799,10 @@ Advantages:
 ## Required Variables
 
 ```env
-VITE_API_BASE_URL=http://localhost:5001
+VITE_API_BASE_URL=
 ```
 
-`vite.config.js` reads `VITE_API_BASE_URL` and proxies browser requests beginning with `/api` to that value. API helpers keep using relative `/api` paths, so the browser does not call the backend host directly during local development.
-
 ---
-
-> **Repository-root workflow:** For normal development, use `npm run setup` and `npm run dev:frontend-admin` from the repository root. The runner verifies that the Admin API is healthy before starting Vite.
 
 # Local Development Setup
 
@@ -796,13 +831,11 @@ http://localhost:5174
 
 # Backend Connection
 
-The admin backend defaults to:
+The frontend admin communicates with:
 
 ```text
-http://localhost:5001
+http://localhost:3001
 ```
-
-The checked-in `frontendAdmin/.env.example` currently contains `VITE_API_BASE_URL=http://localhost:5000`, which is the main backend port. For the admin panel, copy the file to `.env` and set `VITE_API_BASE_URL=http://localhost:5001` unless the admin API is intentionally configured on another port. The frontend dev server itself runs on `http://localhost:5174`.
 
 ---
 
@@ -821,20 +854,6 @@ Backend Admin API
 Purpose:
 
 Prevent CORS issues during local development.
-
----
-
-# Available npm Scripts
-
-Run these from `frontendAdmin/`:
-
-| Script            | Purpose                                        |
-| ----------------- | ---------------------------------------------- |
-| `npm run dev`     | Start the Vite development server on port 5174 |
-| `npm run build`   | Create the production build                    |
-| `npm run preview` | Preview the production build locally           |
-| `npm run lint`    | Run ESLint                                     |
-| `npm run test`    | Run the Vitest test suite once                 |
 
 ---
 

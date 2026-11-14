@@ -22,7 +22,9 @@ export function ToastProvider({ children }) {
   }, []);
 
   return (
-    <ToastContext.Provider value={{ showToast, toasts, dismiss }}>{children}</ToastContext.Provider>
+    <ToastContext.Provider value={{ showToast, toasts, dismiss }}>
+      {children}
+    </ToastContext.Provider>
   );
 }
 

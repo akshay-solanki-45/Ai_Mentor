@@ -1,13 +1,12 @@
+// backend/server.js
 import express from "express";
 import http from "node:http";
 import dotenv from "dotenv";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
-import healthRoutes from "./routes/healthRoutes.js";
 
 import { connectDB, sequelize } from "./config/db.js";
-import { createGracefulShutdown } from "./gracefulShutdown.js";
 
 // ================= ROUTES =================
 import authRoutes from "./routes/auth.js";
@@ -16,21 +15,19 @@ import courseRoutes from "./routes/courseRoutes.js";
 import analyticsRoutes from "./routes/analyticsRoutes.js";
 import sidebarRoutes from "./routes/sidebarRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
-import flashcardRoutes from "./routes/flashcardRoutes.js";
 import communityRoutes from "./routes/communityRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import certificateRoutes from "./routes/certificateRoutes.js";
 import paymentRoutes from "./routes/payment.js";
 import razorpayRoutes from "./routes/razorpay.js";
-import webhookRoutes from "./routes/webhook.js";
 import preferenceRoutes from "./routes/preferenceRoutes.js";
 import contactUsRoutes from "./routes/contactus.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import docsRoutes from "./routes/docsRoutes.js";
+import helmet from "helmet";
 import chatRoutes from "./routes/chatRoutes.js";
 import assistantRoutes from "./routes/assistantRoutes.js";
-import CalendarTaskRoutes from "./routes/CalendarTaskRoutes.js";
 
 // ================= MODELS =================
 import "./models/CommunityPost.js";
@@ -42,17 +39,18 @@ import "./models/Contactmessage.js";
 dotenv.config();
 
 import { validateEnv } from "./env-validator.js";
-import { securityHeaders } from "./config/securityHeaders.js";
-import requestContext from "./middleware/requestContext.js";
-import { errorHandler } from "./middleware/errorMiddleware.js";
-
-import { startTokenCleanup } from "./jobs/tokenCleanup.js";
 validateEnv();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+  })
+);
 
 // ================= SECURE CORS =================
 const envOrigins = process.env.FRONTEND_URL
@@ -70,15 +68,10 @@ const defaultDevOrigins = [
 
 const allowedOrigins = Array.from(new Set([...envOrigins, ...defaultDevOrigins]));
 
-// Request ID first, so every response and log line has one.
-app.use(requestContext);
-
-app.use(securityHeaders());
-
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests without origin (Postman, mobile apps, curl).
+      // Allow requests without origin (Postman, mobile apps, curl)
       if (!origin) {
         return callback(null, true);
       }
@@ -87,28 +80,19 @@ app.use(
         return callback(null, true);
       }
 
-      // Allow localhost/127.0.0.1 origins in development.
+      // Allow any localhost/127.0.0.1 origin in development
       if (process.env.NODE_ENV !== "production") {
         if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
           return callback(null, true);
         }
       }
 
-      console.warn("Blocked by CORS");
-      const corsError = new Error("Not allowed by CORS");
-      corsError.status = 403;
-      corsError.expose = true;
-
-      return callback(corsError);
+      console.error(`❌ Blocked by CORS: ${origin}`);
+      return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
-  }),
+  })
 );
-
-// ================= STRIPE WEBHOOK =================
-// These routes must be before express.json().
-app.use("/api/stripe", webhookRoutes);
-app.use("/api/payment", webhookRoutes);
 
 // ================= MIDDLEWARE =================
 app.use(express.json({ limit: "100kb" }));
@@ -122,8 +106,6 @@ app.get("/", (req, res) => {
   res.send("✅ API is running...");
 });
 
-app.use("/health", healthRoutes);
-
 // ================= API ROUTES =================
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
@@ -133,7 +115,6 @@ app.use("/api/payment/razorpay", razorpayRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/sidebar", sidebarRoutes);
 app.use("/api/ai", aiRoutes);
-app.use("/api/flashcards", flashcardRoutes);
 app.use("/api/community", communityRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/admin", adminRoutes);
@@ -144,45 +125,45 @@ app.use("/api/course-reports", reportRoutes);
 app.use("/api/docs", docsRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/assistant", assistantRoutes);
-app.use("/api/calendar", CalendarTaskRoutes);
 
 // ================= 404 HANDLER =================
 app.use((req, res) => {
-  return res.status(404).json({
+  res.status(404).json({
     success: false,
-    message: "Route not found",
-    requestId: req.id,
+    message: `Route not found: ${req.originalUrl}`,
   });
 });
 
-// ================= GLOBAL ERROR HANDLER (must be last) =================
-app.use(errorHandler);
+// ================= GLOBAL ERROR HANDLER =================
+app.use((err, req, res, next) => {
+  if (err.type === "entity.too.large") {
+    return res.status(413).json({
+      success: false,
+      message: "Payload Too Large",
+    });
+  }
+
+  if (err.type === "entity.parse.failed") {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid JSON",
+    });
+  }
+
+  console.error("🔥 Global Error:", err);
+
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || "Internal Server Error",
+  });
+});
 
 // ================= SERVER START =================
 const PORT = process.env.PORT || 5000;
 
-const SHUTDOWN_TIMEOUT = 10_000;
-let server;
-const shutdown = createGracefulShutdown({
-  getServer: () => server,
-  database: sequelize,
-  timeoutMs: SHUTDOWN_TIMEOUT,
-});
-process.once("SIGTERM", () => {
-  void shutdown("SIGTERM");
-});
-process.once("SIGINT", () => {
-  void shutdown("SIGINT");
-});
-
 const startServer = async () => {
   try {
-    console.log("[STARTING] Backend startup");
-    console.log("[CHECK] Connecting to database...");
-
     await connectDB();
-
-    console.log("[OK] Database connected");
 
     const isDevelopment = process.env.NODE_ENV !== "production";
     const syncOptions = isDevelopment ? { alter: true } : {};
@@ -191,27 +172,22 @@ const startServer = async () => {
 
     console.log(
       isDevelopment
-        ? "[OK] Database schema synchronized (development auto-alter enabled)"
-        : "[OK] Database schema synchronized",
+        ? "✅ Database models synced with schema auto-alter enabled (development)"
+        : "✅ Database models synced"
     );
 
-    server = http.createServer(app);
+    const server = http.createServer(app);
 
     server.requestTimeout = 120_000;
     server.headersTimeout = 65_000;
     server.keepAliveTimeout = 60_000;
-    server.on("error", () => {
-      console.error("[FAILED] Backend HTTP server error.");
-      process.exitCode = 1;
-    });
-    startTokenCleanup();
+
     server.listen(PORT, () => {
-      console.log(`[READY] Backend: http://localhost:${PORT}`);
-      console.log(`[INFO] Allowed frontend origins: ${allowedOrigins.join(", ")}`);
-      console.log("[INFO] Keep this terminal open. Press Ctrl+C to stop the backend.");
+      console.log(`🚀 Server running on http://localhost:${PORT}`);
+      console.log("✅ Allowed Origins:", allowedOrigins);
     });
-  } catch {
-    console.error("[FAILED] Backend startup failed:");
+  } catch (error) {
+    console.error("❌ Server failed:", error);
     process.exit(1);
   }
 };

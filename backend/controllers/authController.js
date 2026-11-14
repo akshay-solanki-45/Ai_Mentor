@@ -5,22 +5,10 @@ import { Op } from "sequelize";
 import { ensureProfileCompleteness, formatFullName } from "../utils/userUtils.js";
 import admin from "firebase-admin";
 import { authServices } from "../services/authExternalServices.js";
-import {
-  AppError,
-  BadRequestError,
-  ConflictError,
-  UnauthorizedError,
-  ForbiddenError,
-  forwardError,
-} from "../utils/error.js";
 
 // Initialize Firebase Admin only outside tests and only when real keys are provided.
 if (process.env.NODE_ENV !== "test") {
-  if (
-    !admin.apps.length &&
-    process.env.FIREBASE_PRIVATE_KEY &&
-    process.env.FIREBASE_PRIVATE_KEY.length > 50
-  ) {
+  if (!admin.apps.length && process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_PRIVATE_KEY.length > 50) {
     try {
       admin.initializeApp({
         credential: admin.credential.cert({
@@ -45,13 +33,13 @@ const generateToken = (id) => {
 };
 
 // Centralized logic moved to userUtils.js
-const register = async (req, res, next) => {
-  const { firstName, lastName, name, email, password } = req.body;
+const register = async (req, res) => {
+  const {firstName, lastName, name, email, password } = req.body;
 
   try {
     const userExists = await User.findOne({ where: { email } });
     if (userExists) {
-      return forwardError(next, res, new ConflictError("User already exists"));
+      return res.status(400).json({ message: "User already exists" });
     }
 
     const fullName = formatFullName(firstName, lastName) || name;
@@ -82,35 +70,26 @@ const register = async (req, res, next) => {
     });
   } catch (error) {
     console.error("Register Error:", error);
-    return forwardError(
-      next,
-      res,
-      new AppError(
-        "Internal Server Error",
-        500,
-        "INTERNAL_SERVER_ERROR",
-        [],
-        error?.message || "Unknown registration error",
-      ),
-    );
+    res.status(500).json({ message: "Server Error" });
   }
 };
 
-const login = async (req, res, next) => {
+const login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
     const user = await User.findOne({ where: { email } });
 
     if (!user) {
-      return forwardError(next, res, new UnauthorizedError("Invalid email or password"));
+      return res.status(401).json({ message: "Invalid email or password" });
     }
 
     const isMatch = await user.matchPassword(password);
 
-    if (user.isBlocked) {
-      return forwardError(next, res, new ForbiddenError("Account suspended"));
-    }
+if (user.isBlocked) {
+  return res.status(403).json({ message: "Account suspended" });
+}
+
 
     if (user && user.password && isMatch) {
       await ensureProfileCompleteness(user);
@@ -143,21 +122,11 @@ const login = async (req, res, next) => {
           console.error("Failed to load notificationController or send login notification:", error);
         });
     } else {
-      return forwardError(next, res, new UnauthorizedError("Invalid email or password"));
+      res.status(401).json({ message: "Invalid email or password" });
     }
   } catch (error) {
     console.error("Login Error:", error);
-    return forwardError(
-      next,
-      res,
-      new AppError(
-        "Internal Server Error",
-        500,
-        "INTERNAL_SERVER_ERROR",
-        [],
-        error?.message || "Unknown login error",
-      ),
-    );
+    res.status(500).json({ message: "Server Error" });
   }
 };
 
@@ -184,7 +153,7 @@ const refreshAvatarInBackground = async (userId, googlePictureUrl) => {
   }
 };
 
-const googleLogin = async (req, res, next) => {
+const googleLogin = async (req, res) => {
   try {
     const { idToken } = req.body;
 
@@ -195,19 +164,18 @@ const googleLogin = async (req, res, next) => {
       decodedToken = await authServices.verifyGoogleIdToken(idToken);
     } catch (verifyError) {
       console.error("Google token verification failed:", verifyError.message);
-      return forwardError(next, res, new UnauthorizedError("Invalid Google token"));
+      return res.status(401).json({ message: "Invalid Google token" });
     }
 
     if (!decodedToken.email_verified) {
-      return forwardError(next, res, new UnauthorizedError("Google email not verified"));
+      return res.status(401).json({ message: "Google email not verified" });
     }
 
     const uid = decodedToken.uid;
     const email = decodedToken.email;
     const name = decodedToken.name || email.split("@")[0];
     let firstName = decodedToken.given_name || decodedToken.name?.split(" ")[0] || "";
-    let lastName =
-      decodedToken.family_name || decodedToken.name?.split(" ").slice(1).join(" ") || "";
+    let lastName = decodedToken.family_name || decodedToken.name?.split(" ").slice(1).join(" ") || "";
     const avatar_url = decodedToken.picture || null;
 
     // Fallback if given_name and family_name are missing
@@ -233,11 +201,11 @@ const googleLogin = async (req, res, next) => {
         role: "user",
       });
     } else {
-      if (user.isBlocked) {
-        return forwardError(next, res, new ForbiddenError("Account suspended"));
-      }
+  if (user.isBlocked) {
+    return res.status(403).json({ message: "Account suspended" });
+  }
 
-      let changed = false;
+  let changed = false;
 
       if (!user.firstName && firstName) {
         user.firstName = firstName;
@@ -302,21 +270,11 @@ const googleLogin = async (req, res, next) => {
     });
   } catch (error) {
     console.error("Google login error:", error);
-    return forwardError(
-      next,
-      res,
-      new AppError(
-        "Internal Server Error",
-        500,
-        "INTERNAL_SERVER_ERROR",
-        [],
-        error?.message || "Google login failed",
-      ),
-    );
+    res.status(500).json({ message: "Google login failed" });
   }
 };
 
-const forgotPassword = async (req, res, next) => {
+const forgotPassword = async (req, res) => {
   const { email } = req.body;
 
   // Identical response whether or not the account exists (prevents user enumeration)
@@ -330,20 +288,13 @@ const forgotPassword = async (req, res, next) => {
     if (!user) {
       return res.status(200).json(genericResponse);
     }
-    // Keep active token and avoid spamming inbox if requested within 60s
-    const RESET_EXPIRY_MS = 3600000; // 1 hour token validity
-    const COOLDOWN_MS = 60 * 1000; // 60 seconds cooldown window
-    if (
-      user.resetPasswordToken &&
-      user.resetPasswordExpires &&
-      new Date(user.resetPasswordExpires).getTime() - Date.now() > RESET_EXPIRY_MS - COOLDOWN_MS
-    ) {
-      return res.status(200).json(genericResponse);
-    }
 
     const resetToken = crypto.randomBytes(20).toString("hex");
 
-    user.resetPasswordToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+    user.resetPasswordToken = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
 
     user.resetPasswordExpires = Date.now() + 3600000;
 
@@ -370,44 +321,27 @@ const forgotPassword = async (req, res, next) => {
       });
 
       res.status(200).json(genericResponse);
-    } catch {
+    } catch (err) {
       console.error("Email could not be sent");
       user.resetPasswordToken = null;
       user.resetPasswordExpires = null;
       await user.save();
-      return forwardError(
-        next,
-        res,
-        new AppError(
-          "Internal Server Error",
-          500,
-          "INTERNAL_SERVER_ERROR",
-          [],
-          "Email could not be sent",
-        ),
-      );
+      return res.status(500).json({ message: "Email could not be sent" });
     }
   } catch (error) {
     console.error("Forgot Password Error:", error);
-    return forwardError(
-      next,
-      res,
-      new AppError(
-        "Internal Server Error",
-        500,
-        "INTERNAL_SERVER_ERROR",
-        [],
-        error?.message || "Forgot password failed",
-      ),
-    );
+    res.status(500).json({ message: "Server Error" });
   }
 };
 
-const resetPassword = async (req, res, next) => {
+const resetPassword = async (req, res) => {
   const { password } = req.body;
 
   try {
-    const hashedToken = crypto.createHash("sha256").update(req.params.token).digest("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(req.params.token)
+      .digest("hex");
 
     const user = await User.findOne({
       where: {
@@ -417,13 +351,13 @@ const resetPassword = async (req, res, next) => {
     });
 
     if (!user) {
-      return forwardError(next, res, new BadRequestError("Invalid or expired token"));
+      return res.status(400).json({ message: "Invalid or expired token" });
     }
 
     user.set("password", password);
     user.resetPasswordToken = null;
     user.resetPasswordExpires = null;
-    user.passwordChangedAt = Date.now();
+    user.passwordChangedAt=Date.now();
 
     await user.save();
 
@@ -431,8 +365,7 @@ const resetPassword = async (req, res, next) => {
       .then(({ createNotification }) => {
         createNotification(user.id, {
           title: "Password Changed",
-          message:
-            "Your password has been successfully reset. If this wasn't you, please secure your account.",
+          message: "Your password has been successfully reset. If this wasn't you, please secure your account.",
           type: "security",
         });
       })
@@ -443,18 +376,14 @@ const resetPassword = async (req, res, next) => {
     res.status(200).json({ message: "Password updated successfully" });
   } catch (error) {
     console.error("Reset Password Error:", error);
-    return forwardError(
-      next,
-      res,
-      new AppError(
-        "Internal Server Error",
-        500,
-        "INTERNAL_SERVER_ERROR",
-        [],
-        error?.message || "Reset password failed",
-      ),
-    );
+    res.status(500).json({ message: "Server Error" });
   }
 };
 
-export { register, login, googleLogin, forgotPassword, resetPassword };
+export {
+  register,
+  login,
+  googleLogin,
+  forgotPassword,
+  resetPassword,
+};

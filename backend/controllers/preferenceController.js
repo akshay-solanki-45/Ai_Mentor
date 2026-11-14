@@ -1,9 +1,8 @@
 import Preference from "../models/Preference.js";
-import { AppError, BadRequestError, NotFoundError, forwardError } from "../utils/error.js";
 
 // @desc Get user preferences
 // @route GET /api/preferences
-export const getPreferences = async (req, res, next) => {
+export const getPreferences = async (req, res) => {
   try {
     const userId = req.user.id;
     const preferences = await Preference.findOne({ where: { user_id: userId } });
@@ -15,37 +14,33 @@ export const getPreferences = async (req, res, next) => {
     res.status(200).json(preferences);
   } catch (error) {
     console.error("GET PREFERENCES ERROR:", error);
-    return forwardError(
-      next,
-      res,
-      new AppError(
-        "Internal Server Error",
-        500,
-        "INTERNAL_SERVER_ERROR",
-        [],
-        error?.message || "Preference lookup failed",
-      ),
-    );
+    res.status(500).json({ message: "Server error" });
   }
 };
 
 // @desc Create user preferences
 // @route POST /api/preferences
-export const createPreferences = async (req, res, next) => {
+export const createPreferences = async (req, res) => {
   try {
     const userId = req.user.id;
-
+    
     // Check if preferences already exist for this user
     const existing = await Preference.findOne({ where: { user_id: userId } });
     if (existing) {
-      return forwardError(next, res, new BadRequestError("Preferences already exist"));
+      return res.status(400).json({ message: "Preferences already exist" });
     }
 
-    const { explanation_type, learning_style, teaching_pace, example_type, focus_area } = req.body;
+    const {
+      explanation_type,
+      learning_style,
+      teaching_pace,
+      example_type,
+      focus_area
+    } = req.body;
 
     // Validate required fields
     if (!explanation_type || !learning_style || !teaching_pace || !example_type || !focus_area) {
-      return forwardError(next, res, new BadRequestError("All required fields must be provided"));
+      return res.status(400).json({ message: "All required fields must be provided" });
     }
 
     const preferences = await Preference.create({
@@ -54,42 +49,38 @@ export const createPreferences = async (req, res, next) => {
       learning_style,
       teaching_pace,
       example_type,
-      focus_area,
+      focus_area
     });
 
     res.status(201).json(preferences);
   } catch (error) {
     console.error("CREATE PREFERENCES ERROR:", error);
-    return forwardError(
-      next,
-      res,
-      new AppError(
-        "Internal Server Error",
-        500,
-        "INTERNAL_SERVER_ERROR",
-        [],
-        error?.message || "Preference creation failed",
-      ),
-    );
+    res.status(500).json({ message: "Server error" });
   }
 };
 
 // @desc Update user preferences
 // @route PUT /api/preferences
-export const updatePreferences = async (req, res, next) => {
+export const updatePreferences = async (req, res) => {
   try {
     const userId = req.user.id;
     const preferences = await Preference.findOne({ where: { user_id: userId } });
 
     if (!preferences) {
-      return forwardError(next, res, new NotFoundError("Preferences not found"));
+      return res.status(404).json({ message: "Preferences not found" });
     }
 
-    const { explanation_type, learning_style, teaching_pace, example_type, focus_area } = req.body;
+    const {
+      explanation_type,
+      learning_style,
+      teaching_pace,
+      example_type,
+      focus_area
+    } = req.body;
 
     // Validate required fields
     if (!explanation_type || !learning_style || !teaching_pace || !example_type || !focus_area) {
-      return forwardError(next, res, new BadRequestError("All required fields must be provided"));
+      return res.status(400).json({ message: "All required fields must be provided" });
     }
 
     preferences.explanation_type = explanation_type;
@@ -103,16 +94,6 @@ export const updatePreferences = async (req, res, next) => {
     res.status(200).json(preferences);
   } catch (error) {
     console.error("UPDATE PREFERENCES ERROR:", error);
-    return forwardError(
-      next,
-      res,
-      new AppError(
-        "Internal Server Error",
-        500,
-        "INTERNAL_SERVER_ERROR",
-        [],
-        error?.message || "Preference update failed",
-      ),
-    );
+    res.status(500).json({ message: "Server error" });
   }
 };

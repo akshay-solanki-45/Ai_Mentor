@@ -96,7 +96,7 @@ module.exports = {
     await queryInterface.addIndex("Payments", ["status"]);
   },
 
-  async down(queryInterface, _Sequelize) {
+  async down(queryInterface, Sequelize) {
     await queryInterface.dropTable("Payments");
   },
 };

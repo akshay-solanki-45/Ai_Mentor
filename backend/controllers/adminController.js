@@ -2,14 +2,6 @@ import Admin from "../models/Admin.js";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import Course from "../models/Course.js";
-import {
-  AppError,
-  BadRequestError,
-  ForbiddenError,
-  NotFoundError,
-  UnauthorizedError,
-  forwardError,
-} from "../utils/error.js";
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -20,13 +12,13 @@ const generateToken = (id) => {
 // @desc    Register a new Admin (restricted to superAdmin)
 // @route   POST /api/admin/register
 // @access  Private/SuperAdmin
-const registerAdmin = async (req, res, next) => {
+const registerAdmin = async (req, res) => {
   const { name, email, password, role } = req.body;
 
   try {
     const adminExists = await Admin.findOne({ where: { email } });
     if (adminExists) {
-      return forwardError(next, res, new BadRequestError("Admin already exists"));
+      return res.status(400).json({ message: "Admin already exists" });
     }
 
     const admin = await Admin.create({
@@ -44,28 +36,20 @@ const registerAdmin = async (req, res, next) => {
     });
   } catch (error) {
     console.error("REGISTER ADMIN ERROR:", error.message);
-    return forwardError(
-      next,
-      res,
-      new AppError(
-        "Internal Server Error",
-        500,
-        "INTERNAL_SERVER_ERROR",
-        [],
-        error?.message || "Admin registration failed",
-      ),
-    );
+    res.status(500).json({ message: "Server Error" });
   }
 };
 
 // @desc    Login Admin
 // @route   POST /api/admin/login
 // @access  Public
-const loginAdmin = async (req, res, next) => {
+const loginAdmin = async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    return forwardError(next, res, new BadRequestError("Email and password are required"));
+    return res
+      .status(400)
+      .json({ message: "Email and password are required" });
   }
 
   try {
@@ -73,11 +57,7 @@ const loginAdmin = async (req, res, next) => {
 
     if (admin && (await admin.matchPassword(password))) {
       if (admin.status === "on-hold") {
-        return forwardError(
-          next,
-          res,
-          new ForbiddenError("Your account has been suspended. Please contact a superadmin."),
-        );
+        return res.status(403).json({ message: "Your account has been suspended. Please contact a superadmin." });
       }
       res.json({
         id: admin.id,
@@ -88,28 +68,18 @@ const loginAdmin = async (req, res, next) => {
         token: generateToken(admin.id),
       });
     } else {
-      return forwardError(next, res, new UnauthorizedError("Invalid email or password"));
+      res.status(401).json({ message: "Invalid email or password" });
     }
   } catch (error) {
     console.error("LOGIN ADMIN ERROR:", error.message);
-    return forwardError(
-      next,
-      res,
-      new AppError(
-        "Internal Server Error",
-        500,
-        "INTERNAL_SERVER_ERROR",
-        [],
-        error?.message || "Admin login failed",
-      ),
-    );
+    res.status(500).json({ message: "Server Error" });
   }
 };
 
 // @desc    Get Current Admin Profile
 // @route   GET /api/admin/profile
 // @access  Private
-const getAdminProfile = async (req, res, next) => {
+const getAdminProfile = async (req, res) => {
   if (req.admin) {
     res.json({
       id: req.admin.id,
@@ -119,42 +89,32 @@ const getAdminProfile = async (req, res, next) => {
       status: req.admin.status,
     });
   } else {
-    return forwardError(next, res, new NotFoundError("Admin not found"));
+    res.status(404).json({ message: "Admin not found" });
   }
 };
 
 // @desc    Delete an Admin (restricted to superAdmin)
 // @route   DELETE /api/admin/:id
 // @access  Private/SuperAdmin
-const deleteAdmin = async (req, res, next) => {
+const deleteAdmin = async (req, res) => {
   const { id } = req.params;
 
   try {
     const adminToDelete = await Admin.findByPk(id);
     if (!adminToDelete) {
-      return forwardError(next, res, new NotFoundError("Admin not found"));
+      return res.status(404).json({ message: "Admin not found" });
     }
 
     // prevent superAdmin from deleting themselves
     if (adminToDelete.id === req.admin.id) {
-      return forwardError(next, res, new BadRequestError("You cannot delete yourself"));
+      return res.status(400).json({ message: "You cannot delete yourself" });
     }
 
     await adminToDelete.destroy();
     res.json({ message: "Admin removed" });
   } catch (error) {
     console.error("DELETE ADMIN ERROR:", error.message);
-    return forwardError(
-      next,
-      res,
-      new AppError(
-        "Internal Server Error",
-        500,
-        "INTERNAL_SERVER_ERROR",
-        [],
-        error?.message || "Admin deletion failed",
-      ),
-    );
+    res.status(500).json({ message: "Server Error" });
   }
 };
 
@@ -166,7 +126,7 @@ const logoutAdmin = async (req, res) => {
 };
 
 //
-const getAllEnrollments = async (req, res, next) => {
+const getAllEnrollments = async (req, res) => {
   try {
     const { type = "stats" } = req.query;
 
@@ -181,7 +141,7 @@ const getAllEnrollments = async (req, res, next) => {
 
     // 👉 Create course price map
     const coursePriceMap = {};
-    courses.forEach((course) => {
+    courses.forEach(course => {
       coursePriceMap[course.id] = course.priceValue || 0;
     });
 
@@ -194,11 +154,11 @@ const getAllEnrollments = async (req, res, next) => {
       const now = new Date();
       const activeThresholdDays = 7;
 
-      users.forEach((user) => {
+      users.forEach(user => {
         const purchased = user.purchasedCourses || [];
 
         if (purchased.length > 0) {
-          purchased.forEach((course) => {
+          purchased.forEach(course => {
             totalEnrollments++;
 
             // 💰 Revenue
@@ -207,7 +167,8 @@ const getAllEnrollments = async (req, res, next) => {
             // ⚡ Active Users (lastWatched within 7 days)
             if (course.progress?.lastWatched) {
               const lastWatched = new Date(course.progress.lastWatched);
-              const diffDays = (now - lastWatched) / (1000 * 60 * 60 * 24);
+              const diffDays =
+                (now - lastWatched) / (1000 * 60 * 60 * 24);
 
               if (diffDays <= activeThresholdDays) {
                 activeUsersSet.add(user.id);
@@ -236,10 +197,10 @@ const getAllEnrollments = async (req, res, next) => {
 
       let enrollments = [];
 
-      users.forEach((user) => {
+      users.forEach(user => {
         const purchased = user.purchasedCourses || [];
 
-        purchased.forEach((course) => {
+        purchased.forEach(course => {
           enrollments.push({
             userName: user.name,
             email: user.email,
@@ -251,7 +212,9 @@ const getAllEnrollments = async (req, res, next) => {
       });
 
       // 👉 Sort by latest purchase
-      enrollments.sort((a, b) => new Date(b.purchaseDate) - new Date(a.purchaseDate));
+      enrollments.sort(
+        (a, b) => new Date(b.purchaseDate) - new Date(a.purchaseDate)
+      );
 
       const total = enrollments.length;
 
@@ -275,10 +238,10 @@ const getAllEnrollments = async (req, res, next) => {
 
       let enrollments = [];
 
-      users.forEach((user) => {
+      users.forEach(user => {
         const purchased = user.purchasedCourses || [];
 
-        purchased.forEach((course) => {
+        purchased.forEach(course => {
           enrollments.push({
             userName: user.name,
             email: user.email,
@@ -290,7 +253,9 @@ const getAllEnrollments = async (req, res, next) => {
       });
 
       // 🔥 Sort latest first
-      enrollments.sort((a, b) => new Date(b.purchaseDate) - new Date(a.purchaseDate));
+      enrollments.sort(
+        (a, b) => new Date(b.purchaseDate) - new Date(a.purchaseDate)
+      );
 
       return res.status(200).json({
         success: true,
@@ -298,7 +263,7 @@ const getAllEnrollments = async (req, res, next) => {
         data: enrollments.slice(0, limit),
       });
     }
-    //recent ends
+    //recent ends 
 
     //top courses start
     if (type === "top-courses") {
@@ -307,10 +272,10 @@ const getAllEnrollments = async (req, res, next) => {
       const courseCountMap = {};
 
       // Step 1 & 2: Count frequency
-      users.forEach((user) => {
+      users.forEach(user => {
         const purchased = user.purchasedCourses || [];
 
-        purchased.forEach((course) => {
+        purchased.forEach(course => {
           if (!courseCountMap[course.courseId]) {
             courseCountMap[course.courseId] = 0;
           }
@@ -319,15 +284,15 @@ const getAllEnrollments = async (req, res, next) => {
       });
 
       // Step 3: Convert to array
-      let result = Object.keys(courseCountMap).map((courseId) => ({
+      let result = Object.keys(courseCountMap).map(courseId => ({
         courseId: Number(courseId),
         totalPurchases: courseCountMap[courseId],
       }));
 
       // Step 4: Add course title
-      result = result.map((item) => ({
+      result = result.map(item => ({
         ...item,
-        courseTitle: courses.find((c) => c.id === item.courseId)?.title || "Unknown",
+        courseTitle: courses.find(c => c.id === item.courseId)?.title || "Unknown",
       }));
 
       // Step 5: Sort
@@ -346,20 +311,26 @@ const getAllEnrollments = async (req, res, next) => {
       const { userId } = req.query;
 
       if (!userId) {
-        return forwardError(next, res, new BadRequestError("userId is required"));
+        return res.status(400).json({
+          success: false,
+          message: "userId is required",
+        });
       }
 
       const user = await User.findByPk(userId);
 
       if (!user) {
-        return forwardError(next, res, new NotFoundError("User not found"));
+        return res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
       }
 
       const purchased = user.purchasedCourses || [];
 
       let totalSpent = 0;
 
-      const enrollments = purchased.map((course) => {
+      const enrollments = purchased.map(course => {
         const amount = coursePriceMap[course.courseId] || 0;
         totalSpent += amount;
 
@@ -394,13 +365,19 @@ const getAllEnrollments = async (req, res, next) => {
       const { courseId } = req.query;
 
       if (!courseId) {
-        return forwardError(next, res, new BadRequestError("courseId is required"));
+        return res.status(400).json({
+          success: false,
+          message: "courseId is required",
+        });
       }
 
-      const course = courses.find((c) => c.id == courseId);
+      const course = courses.find(c => c.id == courseId);
 
       if (!course) {
-        return forwardError(next, res, new NotFoundError("Course not found"));
+        return res.status(404).json({
+          success: false,
+          message: "Course not found",
+        });
       }
 
       let totalEnrollments = 0;
@@ -411,10 +388,10 @@ const getAllEnrollments = async (req, res, next) => {
 
       let usersList = [];
 
-      users.forEach((user) => {
+      users.forEach(user => {
         const purchased = user.purchasedCourses || [];
 
-        purchased.forEach((c) => {
+        purchased.forEach(c => {
           if (c.courseId == courseId) {
             totalEnrollments++;
 
@@ -427,7 +404,8 @@ const getAllEnrollments = async (req, res, next) => {
 
             if (c.progress?.lastWatched) {
               const lastWatched = new Date(c.progress.lastWatched);
-              const diffDays = (now - lastWatched) / (1000 * 60 * 60 * 24);
+              const diffDays =
+                (now - lastWatched) / (1000 * 60 * 60 * 24);
 
               if (diffDays <= activeThresholdDays) {
                 activeUsersSet.add(user.id);
@@ -454,30 +432,25 @@ const getAllEnrollments = async (req, res, next) => {
     //course ends
 
     // fallback
-    return forwardError(next, res, new BadRequestError("Invalid type parameter"));
+    res.status(400).json({
+      success: false,
+      message: "Invalid type parameter",
+    });
+
   } catch (error) {
     console.error("ENROLLMENTS ERROR:", error.message);
-    return forwardError(
-      next,
-      res,
-      new AppError(
-        "Internal Server Error",
-        500,
-        "INTERNAL_SERVER_ERROR",
-        [],
-        error?.message || "Enrollment lookup failed",
-      ),
-    );
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
   }
 };
 
-const getAllPayments = async (req, res, next) => {
+const getAllPayments = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 100);
-    const search = String(req.query.search || "")
-      .trim()
-      .toLowerCase();
+    const search = String(req.query.search || "").trim().toLowerCase();
 
     const users = await User.findAll({
       attributes: ["id", "name", "email", "purchasedCourses"],
@@ -499,7 +472,9 @@ const getAllPayments = async (req, res, next) => {
     let payments = [];
 
     users.forEach((user) => {
-      const purchased = Array.isArray(user.purchasedCourses) ? user.purchasedCourses : [];
+      const purchased = Array.isArray(user.purchasedCourses)
+        ? user.purchasedCourses
+        : [];
 
       purchased.forEach((item, index) => {
         if (!item || typeof item !== "object") {
@@ -524,7 +499,8 @@ const getAllPayments = async (req, res, next) => {
           userName: user.name,
           email: user.email,
           courseId,
-          courseTitle: item.courseTitle || courseInfo.title || `Course ${item.courseId}`,
+          courseTitle:
+            item.courseTitle || courseInfo.title || `Course ${item.courseId}`,
           amount,
           currency: item.currency || courseInfo.currency || "INR",
           status: item.paymentStatus || "paid",
@@ -537,7 +513,12 @@ const getAllPayments = async (req, res, next) => {
 
     if (search) {
       payments = payments.filter((payment) => {
-        const text = [payment.userName, payment.email, payment.courseTitle, payment.transactionId]
+        const text = [
+          payment.userName,
+          payment.email,
+          payment.courseTitle,
+          payment.transactionId,
+        ]
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
@@ -546,10 +527,15 @@ const getAllPayments = async (req, res, next) => {
       });
     }
 
-    payments.sort((a, b) => new Date(b.purchaseDate || 0) - new Date(a.purchaseDate || 0));
+    payments.sort(
+      (a, b) => new Date(b.purchaseDate || 0) - new Date(a.purchaseDate || 0)
+    );
 
     const total = payments.length;
-    const totalAmount = payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+    const totalAmount = payments.reduce(
+      (sum, payment) => sum + Number(payment.amount || 0),
+      0
+    );
 
     const start = (page - 1) * limit;
     const data = payments.slice(start, start + limit);
@@ -568,67 +554,46 @@ const getAllPayments = async (req, res, next) => {
     });
   } catch (error) {
     console.error("GET PAYMENTS ERROR:", error.message);
-    return forwardError(
-      next,
-      res,
-      new AppError(
-        "Internal Server Error",
-        500,
-        "INTERNAL_SERVER_ERROR",
-        [],
-        error?.message || "Payments lookup failed",
-      ),
-    );
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
   }
 };
 
-const getAllCourses = async (req, res, next) => {
+const getAllCourses = async (req, res) => {
   try {
     const courses = await Course.findAll();
     res.status(200).json({
       success: true,
       data: courses,
     });
-  } catch (error) {
+  } catch (error) { 
     console.error("GET COURSES ERROR:", error.message);
-    return forwardError(
-      next,
-      res,
-      new AppError(
-        "Internal Server Error",
-        500,
-        "INTERNAL_SERVER_ERROR",
-        [],
-        error?.message || "Course lookup failed",
-      ),
-    );
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
   }
-};
+}
 
-const getAllUsers = async (req, res, next) => {
+const getAllUsers = async (req, res) => {
   try {
     const users = await User.findAll({
       attributes: ["id", "name", "email", "purchasedCourses", "createdAt"],
     });
-    res.status(200).json({
+    res.status(200).json({ 
       success: true,
       data: users,
     });
   } catch (error) {
     console.error("GET USERS ERROR:", error.message);
-    return forwardError(
-      next,
-      res,
-      new AppError(
-        "Internal Server Error",
-        500,
-        "INTERNAL_SERVER_ERROR",
-        [],
-        error?.message || "User lookup failed",
-      ),
-    );
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
   }
-};
+}
 
 export {
   registerAdmin,

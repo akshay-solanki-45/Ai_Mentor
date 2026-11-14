@@ -31,15 +31,11 @@ const Admin = sequelize.define(
       type: DataTypes.ENUM("active", "on-hold"),
       defaultValue: "active",
     },
-    passwordChangedAt: {
-      type: DataTypes.DATE,
-      allowNull: true,
-    },
   },
   {
     timestamps: true,
     tableName: "Admins",
-  },
+  }
 );
 
 Admin.beforeCreate(async (admin) => {
@@ -47,11 +43,12 @@ Admin.beforeCreate(async (admin) => {
   admin.password = await bcrypt.hash(admin.password, salt);
 });
 Admin.beforeUpdate(async (admin) => {
-  if (admin.changed("password")) {
+  if (admin.changed('password')) {
     const salt = await bcrypt.genSalt(10);
     admin.password = await bcrypt.hash(admin.password, salt);
   }
 });
+
 
 Admin.prototype.matchPassword = async function (password) {
   return await bcrypt.compare(password, this.password);

@@ -1,5 +1,7 @@
 import jwt from "jsonwebtoken";
-import { generateCourseSyllabus } from "./syllabusController.js";
+import bcrypt from "bcryptjs";
+import { sequelize } from "../config/db.js";
+import { DataTypes } from "sequelize";
 import {
   Admin,
   User,
@@ -10,8 +12,7 @@ import {
   Report,
   AdminNotification,
 } from "../models/index.js";
-import { sendServerError } from "../utils/apiError.js";
-
+ 
 let notificationSeedPromise = null;
 
 const ensureNotificationSeed = async () => {
@@ -24,18 +25,9 @@ const ensureNotificationSeed = async () => {
       }
 
       const [latestCourse, latestUser, latestAdmin] = await Promise.all([
-        Course.findOne({
-          attributes: ["title", "createdAt"],
-          order: [["createdAt", "DESC"]],
-        }),
-        User.findOne({
-          attributes: ["name", "createdAt"],
-          order: [["createdAt", "DESC"]],
-        }),
-        Admin.findOne({
-          attributes: ["name", "createdAt"],
-          order: [["createdAt", "DESC"]],
-        }),
+        Course.findOne({ attributes: ["title", "createdAt"], order: [["createdAt", "DESC"]] }),
+        User.findOne({ attributes: ["name", "createdAt"], order: [["createdAt", "DESC"]] }),
+        Admin.findOne({ attributes: ["name", "createdAt"], order: [["createdAt", "DESC"]] }),
       ]);
 
       const seedRows = [];
@@ -128,7 +120,8 @@ const registerAdmin = async (req, res) => {
       role: admin.role,
     });
   } catch (error) {
-    return sendServerError(req, res, error, "adminController.registerAdmin");
+    console.error("REGISTER ADMIN ERROR:", error.message);
+    res.status(500).json({ message: "Server Error" });
   }
 };
 
@@ -153,7 +146,8 @@ const loginAdmin = async (req, res) => {
       res.status(401).json({ message: "Invalid email or password" });
     }
   } catch (error) {
-    return sendServerError(req, res, error, "adminController.loginAdmin");
+    console.error("LOGIN ADMIN ERROR:", error.message);
+    res.status(500).json({ message: "Server Error" });
   }
 };
 
@@ -192,7 +186,8 @@ const deleteAdmin = async (req, res) => {
     await adminToDelete.destroy();
     res.json({ message: "Admin removed" });
   } catch (error) {
-    return sendServerError(req, res, error, "adminController.deleteAdmin");
+    console.error("DELETE ADMIN ERROR:", error.message);
+    res.status(500).json({ message: "Server Error" });
   }
 };
 
@@ -200,9 +195,7 @@ const deleteAdmin = async (req, res) => {
 // @route   POST /api/admin/logout
 // @access  Private
 const logoutAdmin = async (req, res) => {
-  res.json({
-    message: "Logged out successfully. Please remove your token on the client side.",
-  });
+  res.json({ message: "Logged out successfully. Please remove your token on the client side." });
 };
 
 // @desc    Get all Enrollments
@@ -221,7 +214,7 @@ const getAllEnrollments = async (req, res) => {
     });
 
     const coursePriceMap = {};
-    courses.forEach((course) => {
+    courses.forEach(course => {
       coursePriceMap[course.id] = course.priceValue || 0;
     });
 
@@ -233,11 +226,11 @@ const getAllEnrollments = async (req, res) => {
       const now = new Date();
       const activeThresholdDays = 7;
 
-      users.forEach((user) => {
+      users.forEach(user => {
         const purchased = user.purchasedCourses || [];
 
         if (purchased.length > 0) {
-          purchased.forEach((course) => {
+          purchased.forEach(course => {
             totalEnrollments++;
             totalRevenue += coursePriceMap[course.courseId] || 0;
 
@@ -271,10 +264,10 @@ const getAllEnrollments = async (req, res) => {
 
       let enrollments = [];
 
-      users.forEach((user) => {
+      users.forEach(user => {
         const purchased = user.purchasedCourses || [];
 
-        purchased.forEach((course) => {
+        purchased.forEach(course => {
           enrollments.push({
             user: user.name,
             email: user.email,
@@ -304,7 +297,8 @@ const getAllEnrollments = async (req, res) => {
 
     res.status(400).json({ success: false, message: "Invalid type parameter" });
   } catch (error) {
-    return sendServerError(req, res, error, "adminController.getAllEnrollments");
+    console.error("ENROLLMENTS ERROR:", error.message);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -315,9 +309,7 @@ const getAllPayments = async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 100);
-    const search = String(req.query.search || "")
-      .trim()
-      .toLowerCase();
+    const search = String(req.query.search || "").trim().toLowerCase();
 
     const users = await User.findAll({
       attributes: ["id", "name", "email", "purchasedCourses"],
@@ -407,7 +399,8 @@ const getAllPayments = async (req, res) => {
       data,
     });
   } catch (error) {
-    return sendServerError(req, res, error, "adminController.getAllPayments");
+    console.error("GET PAYMENTS ERROR:", error.message);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -425,7 +418,8 @@ const getAllCourses = async (req, res) => {
       data: courses,
     });
   } catch (error) {
-    return sendServerError(req, res, error, "adminController.getAllCourses");
+    console.error("GET COURSES ERROR:", error.message);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -442,7 +436,8 @@ const getAllUsers = async (req, res) => {
       data: users,
     });
   } catch (error) {
-    return sendServerError(req, res, error, "adminController.getAllUsers");
+    console.error("GET USERS ERROR:", error.message);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -461,7 +456,8 @@ const getAllAdmins = async (req, res) => {
       data: admins,
     });
   } catch (error) {
-    return sendServerError(req, res, error, "adminController.getAllAdmins");
+    console.error("GET ADMINS ERROR:", error.message);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -478,7 +474,8 @@ const getAdminNotifications = async (req, res) => {
 
     res.status(200).json({ success: true, data: notifications });
   } catch (error) {
-    return sendServerError(req, res, error, "adminController.getAdminNotifications");
+    console.error("GET NOTIFICATIONS ERROR:", error.message);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -490,7 +487,8 @@ const markAllNotificationsRead = async (req, res) => {
     await AdminNotification.update({ unread: false }, { where: { unread: true } });
     res.status(200).json({ success: true, message: "All notifications marked as read" });
   } catch (error) {
-    return sendServerError(req, res, error, "adminController.markAllNotificationsRead");
+    console.error("MARK ALL READ ERROR:", error.message);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -511,7 +509,8 @@ const markNotificationRead = async (req, res) => {
 
     res.status(200).json({ success: true, data: notification });
   } catch (error) {
-    return sendServerError(req, res, error, "adminController.markNotificationRead");
+    console.error("MARK READ ERROR:", error.message);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -523,7 +522,8 @@ const clearAllNotifications = async (req, res) => {
     await AdminNotification.destroy({ where: {} });
     res.status(200).json({ success: true, message: "All notifications cleared" });
   } catch (error) {
-    return sendServerError(req, res, error, "adminController.clearAllNotifications");
+    console.error("CLEAR NOTIFICATIONS ERROR:", error.message);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -620,7 +620,8 @@ const getAllReports = async (req, res) => {
       data: reports,
     });
   } catch (error) {
-    return sendServerError(req, res, error, "adminController.getAllReports");
+    console.error("GET REPORTS ERROR:", error.message);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -661,7 +662,11 @@ const createCourse = async (req, res) => {
       data: course,
     });
   } catch (error) {
-    return sendServerError(req, res, error, "adminController.createCourse");
+    console.error("CREATE COURSE ERROR:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
   }
 };
 
@@ -679,10 +684,7 @@ const getCourseSyllabus = async (req, res) => {
 
     const modules = await Module.findAll({
       where: { courseId },
-      order: [
-        ["order", "ASC"],
-        ["createdAt", "ASC"],
-      ],
+      order: [["order", "ASC"], ["createdAt", "ASC"]],
       include: [
         {
           model: Lesson,
@@ -695,9 +697,7 @@ const getCourseSyllabus = async (req, res) => {
     const formattedModules = modules.map((mod) => {
       const plainMod = mod.get({ plain: true });
       if (plainMod.lessons) {
-        plainMod.lessons.sort(
-          (a, b) => a.order - b.order || new Date(a.createdAt) - new Date(b.createdAt),
-        );
+        plainMod.lessons.sort((a, b) => a.order - b.order || new Date(a.createdAt) - new Date(b.createdAt));
       }
       return plainMod;
     });
@@ -711,7 +711,74 @@ const getCourseSyllabus = async (req, res) => {
       },
     });
   } catch (error) {
-    return sendServerError(req, res, error, "adminController.getCourseSyllabus");
+    console.error("GET COURSE SYLLABUS ERROR:", error.message);
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+// @desc    Generate Course Syllabus with AI
+// @route   POST /api/admin/courses/:id/generate-syllabus
+// @access  Private
+const generateCourseSyllabusWithAI = async (req, res) => {
+  try {
+    const courseId = req.params.id;
+    const course = await Course.findByPk(courseId);
+
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    // Call Python AI Service
+    // We assume backendAdmin can access AI service via process.env.BACKEND_URL or hardcode
+    // Let's use the Python AI server URL (it runs on 8000)
+    const aiUrl = `${process.env.AI_SERVICE_URL}/generate-syllabus`;
+    const aiResponse = await fetch(aiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        course_title: course.title,
+        category: course.category
+      }),
+    });
+
+    if (!aiResponse.ok) {
+      return res.status(500).json({ message: "AI Service failed to generate syllabus. Please make sure the python server is running." });
+    }
+
+    const data = await aiResponse.json();
+    if (data.error) {
+      return res.status(500).json({ message: data.error });
+    }
+
+    // Insert into DB
+    let moduleOrder = 1;
+    for (const mod of data.modules) {
+      const newModule = await Module.create({
+        courseId: course.id,
+        title: mod.title,
+        order: moduleOrder++
+      });
+
+      let lessonOrder = 1;
+      for (const les of mod.lessons) {
+        await Lesson.create({
+          moduleId: newModule.id,
+          title: les.title,
+          duration: les.duration || "5 mins",
+          type: les.type || "video",
+          order: lessonOrder++
+        });
+      }
+    }
+
+    res.json({ message: "Syllabus generated successfully", data: data });
+  } catch (error) {
+    console.error("GENERATE SYLLABUS ERROR:", error.message);
+    // Return a better error if fetch failed due to AI server not running
+    if (error.cause && error.cause.code === 'ECONNREFUSED') {
+      return res.status(500).json({ message: "Python AI Server is not running. Please start it with start_ai.bat" });
+    }
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -734,5 +801,5 @@ export {
   clearAllNotifications,
   getAllReports,
   getCourseSyllabus,
-  generateCourseSyllabus,
+  generateCourseSyllabusWithAI,
 };

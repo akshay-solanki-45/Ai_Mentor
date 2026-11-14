@@ -1,39 +1,7 @@
-import { DataTypes, Model, Op } from "sequelize";
+import { DataTypes, Model } from "sequelize";
 import { sequelize } from "../config/db.js";
 
-export const PAYMENT_STATES = Object.freeze({
-  INITIATED: "initiated",
-  PROCESSING: "processing",
-  SUCCESS: "success",
-  FAILED: "failed",
-});
-
-export const ALLOWED_PAYMENT_TRANSITIONS = Object.freeze({
-  initiated: ["processing", "failed"],
-  processing: ["success", "failed"],
-  failed: ["initiated"],
-  success: [],
-});
-
-class Payment extends Model {
-  static canTransition(fromStatus, toStatus) {
-    return Boolean(ALLOWED_PAYMENT_TRANSITIONS[fromStatus]?.includes(toStatus));
-  }
-
-  static async reconcileStalePayments({ timeoutMs = 30 * 60 * 1000, now = new Date() } = {}) {
-    const cutoff = new Date(now.getTime() - timeoutMs);
-    const [affectedCount] = await Payment.update(
-      { status: "failed" },
-      {
-        where: {
-          status: { [Op.in]: ["initiated", "processing"] },
-          updatedAt: { [Op.lt]: cutoff },
-        },
-      },
-    );
-    return affectedCount;
-  }
-}
+class Payment extends Model { }
 
 Payment.init(
   {
@@ -134,7 +102,7 @@ Payment.init(
       { fields: ["razorpayOrderId"] },
       { fields: ["status"] },
     ],
-  },
+  }
 );
 
 export default Payment;

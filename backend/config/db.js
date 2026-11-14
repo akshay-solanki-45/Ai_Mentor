@@ -1,9 +1,7 @@
-import fs from "fs";
 import { Sequelize } from "sequelize";
 import dotenv from "dotenv";
 
 const isTestEnvironment = process.env.NODE_ENV === "test";
-const isProduction = process.env.NODE_ENV === "production";
 
 if (!isTestEnvironment) {
   dotenv.config();
@@ -11,69 +9,6 @@ if (!isTestEnvironment) {
 
 // Tests use inert local metadata and never inherit production database settings.
 const connectionString = isTestEnvironment ? null : process.env.NEON_DATABASE_URL;
-
-const allowInsecureDbSsl =
-  !isProduction && String(process.env.ALLOW_INSECURE_DB_SSL).trim() === "true";
-
-if (isProduction && process.env.ALLOW_INSECURE_DB_SSL === "true") {
-  throw new Error(
-    "Invalid database TLS configuration: ALLOW_INSECURE_DB_SSL cannot be enabled in production.",
-  );
-}
-
-const getCaCertificate = () => {
-  if (process.env.DB_SSL_CA) {
-    return process.env.DB_SSL_CA.replace(/\\n/g, "\n");
-  }
-
-  if (process.env.DB_SSL_CA_FILE) {
-    try {
-      return fs.readFileSync(process.env.DB_SSL_CA_FILE, "utf8");
-    } catch (error) {
-      throw new Error(
-        `Invalid database TLS configuration: unable to read DB_SSL_CA_FILE (${error.message})`,
-        { cause: error },
-      );
-    }
-  }
-
-  return undefined;
-};
-
-const prepareConnectionString = (urlString) => {
-  const url = new URL(urlString);
-
-  const sslMode = url.searchParams.get("sslmode");
-  const ca = getCaCertificate();
-
-  if (isProduction && sslMode !== "verify-full") {
-    throw new Error(
-      "Invalid production database TLS configuration: NEON_DATABASE_URL must use sslmode=verify-full.",
-    );
-  }
-
-  if (!isProduction && !allowInsecureDbSsl && sslMode && sslMode !== "verify-full") {
-    throw new Error(
-      "Invalid database TLS configuration: use sslmode=verify-full, or explicitly set ALLOW_INSECURE_DB_SSL=true for development only.",
-    );
-  }
-
-  // Configure TLS explicitly below.
-  // Remove connection-string SSL options so they cannot override
-  // dialectOptions.ssl.
-  url.searchParams.delete("sslmode");
-  url.searchParams.delete("sslrootcert");
-  url.searchParams.delete("sslcert");
-  url.searchParams.delete("sslkey");
-
-  return {
-    connectionString: url.toString(),
-    ssl: {
-      rejectUnauthorized: !allowInsecureDbSsl,
-      ...(ca ? { ca } : {}),
-    },
-  };
-};
 
 let sequelize;
 
@@ -85,10 +20,8 @@ if (isTestEnvironment) {
     logging: false,
   });
 } else if (connectionString) {
-  const { connectionString: secureConnectionString, ssl } =
-    prepareConnectionString(connectionString);
-
-  sequelize = new Sequelize(secureConnectionString, {
+  // Production: Use Neon connection string
+  sequelize = new Sequelize(connectionString, {
     dialect: "postgres",
     logging: false,
     pool: {
@@ -98,26 +31,45 @@ if (isTestEnvironment) {
       idle: parseInt(process.env.DB_POOL_IDLE, 10) || 10000,
     },
     dialectOptions: {
-      ssl,
+      ssl: {
+        require: true,
+        rejectUnauthorized: false,
+      },
     },
   });
 } else {
-  // Local development PostgreSQL.
-  // This branch is used only when NEON_DATABASE_URL is not configured.
-  sequelize = new Sequelize(process.env.DB_NAME, process.env.DB_USER, process.env.DB_PASSWORD, {
-    host: process.env.DB_HOST || "localhost",
-    port: process.env.DB_PORT || 5432,
-    dialect: "postgres",
-    logging: false,
-  });
+  // Development: Use local PostgreSQL credentials
+  sequelize = new Sequelize(
+    process.env.DB_NAME,
+    process.env.DB_USER,
+    process.env.DB_PASSWORD,
+    {
+      host: process.env.DB_HOST || "localhost",
+      port: process.env.DB_PORT || 5432,
+      dialect: "postgres",
+      logging: false,
+    }
+  );
 }
 
 async function connectDB() {
   try {
     await sequelize.authenticate();
-    console.log("✅ Database connected successfully.");
+    console.log("✅ Connected to Neon PostgreSQL using Sequelize");
   } catch (error) {
-    console.error("❌ Database connection failed:", error.message);
+    const messageParts = ["❌ Unable to connect:"];
+    if (error && typeof error === "object") {
+      if ("message" in error && error.message) {
+        messageParts.push(error.message);
+      }
+      if ("code" in error && error.code) {
+        messageParts.push(`(code: ${error.code})`);
+      }
+    }
+    console.error(messageParts.join(" "));
+    if (process.env.DB_LOG_VERBOSE_ERRORS === "true") {
+      console.error(error);
+    }
     throw error;
   }
 }

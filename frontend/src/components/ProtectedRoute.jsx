@@ -8,7 +8,11 @@ const ProtectedRoute = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (isAuthenticated && user?.isProfileComplete && location.pathname === "/complete-profile") {
+    if (
+      isAuthenticated &&
+      user?.isProfileComplete &&
+      location.pathname === "/complete-profile"
+    ) {
       navigate("/dashboard", { replace: true });
     }
   }, [isAuthenticated, user?.isProfileComplete, location.pathname, navigate]);

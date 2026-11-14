@@ -61,8 +61,12 @@ CommunityPost.init(
     sequelize,
     modelName: "CommunityPost",
     timestamps: true,
-    indexes: [{ fields: ["type"] }, { fields: ["courseId"] }, { fields: ["createdAt"] }],
-  },
+    indexes: [
+      { fields: ["type"] },
+      { fields: ["courseId"] },
+      { fields: ["createdAt"] },
+    ],
+  }
 );
 
 CommunityPost.belongsTo(User, { foreignKey: "userId", as: "author" });

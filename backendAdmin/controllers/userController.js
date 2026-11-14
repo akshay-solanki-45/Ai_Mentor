@@ -1,5 +1,4 @@
 import { User } from "../models/index.js";
-import { sendServerError } from "../utils/apiError.js";
 
 export const getAllUsers = async (req, res) => {
   try {
@@ -11,37 +10,37 @@ export const getAllUsers = async (req, res) => {
     const offset = (page - 1) * limit;
 
     const { search, status } = req.query;
-    const { Op } = await import("sequelize");
+const { Op } = await import("sequelize");
 
-    const where = {};
+const where = {};
 
-    if (search) {
-      where[Op.or] = [
-        { name: { [Op.iLike]: `%${search}%` } },
-        { email: { [Op.iLike]: `%${search}%` } },
-      ];
-    }
+if (search) {
+  where[Op.or] = [
+    { name: { [Op.iLike]: `%${search}%` } },
+    { email: { [Op.iLike]: `%${search}%` } },
+  ];
+}
 
-    if (status && status !== "all") {
-      where.status = status;
-    }
+if (status && status !== "all") {
+  where.status = status;
+}
 
-    const users = await User.findAndCountAll({
-      attributes: [
-        "id",
-        "name",
-        "email",
-        "role",
-        "purchasedCourses",
-        "createdAt",
-        "status",
-        "isBlocked",
-      ],
-      where,
-      limit,
-      offset,
-      order: [["createdAt", "DESC"]],
-    });
+const users = await User.findAndCountAll({
+  attributes: [
+    "id",
+    "name",
+    "email",
+    "role",
+    "purchasedCourses",
+    "createdAt",
+    "status",
+    "isBlocked",
+  ],
+  where,
+  limit,
+  offset,
+  order: [["createdAt", "DESC"]],
+});
 
     res.status(200).json({
       success: true,
@@ -51,7 +50,11 @@ export const getAllUsers = async (req, res) => {
       data: users.rows,
     });
   } catch (error) {
-    return sendServerError(req, res, error, "userController.getAllUsers");
+    console.error("GET USERS ERROR:", error.message || error);
+    res.status(500).json({
+      success: false,
+      message: "Server Error: " + error.message,
+    });
   }
 };
 
@@ -74,7 +77,8 @@ export const updateUserStatus = async (req, res) => {
 
     res.status(200).json({ success: true, data: user });
   } catch (error) {
-    return sendServerError(req, res, error, "userController.updateUserStatus");
+    console.error("UPDATE STATUS ERROR:", error.message || error);
+    res.status(500).json({ success: false, message: "Server Error: " + error.message });
   }
 };
 export const toggleUserBlock = async (req, res) => {
@@ -95,7 +99,9 @@ export const toggleUserBlock = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: user.isBlocked ? "User blocked successfully" : "User unblocked successfully",
+      message: user.isBlocked
+        ? "User blocked successfully"
+        : "User unblocked successfully",
       data: {
         id: user.id,
         name: user.name,
@@ -104,7 +110,12 @@ export const toggleUserBlock = async (req, res) => {
       },
     });
   } catch (error) {
-    return sendServerError(req, res, error, "userController.toggleUserBlock");
+    console.error("TOGGLE USER BLOCK ERROR:", error.message || error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Server Error: " + error.message,
+    });
   }
 };
 export const deleteUser = async (req, res) => {
@@ -118,6 +129,7 @@ export const deleteUser = async (req, res) => {
     await user.destroy();
     res.status(200).json({ success: true, message: "User deleted successfully" });
   } catch (error) {
-    return sendServerError(req, res, error, "userController.deleteUser");
+    console.error("DELETE USER ERROR:", error.message || error);
+    res.status(500).json({ success: false, message: "Server Error: " + error.message });
   }
 };

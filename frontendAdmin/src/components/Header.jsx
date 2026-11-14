@@ -27,8 +27,7 @@ const Header = ({ title, onMenuClick, searchQuery = "", onSearchChange }) => {
 
   const displayName = user?.name || user?.email?.split("@")[0] || "Admin";
   const avatarUrl =
-    user?.avatar_url ||
-    `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(displayName)}`;
+    user?.avatar_url || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(displayName)}`;
   const unreadCount = notifications.filter((item) => item.unread).length;
   const effectiveSearchQuery =
     typeof onSearchChange === "function" ? searchQuery : internalSearchQuery;
@@ -117,7 +116,7 @@ const Header = ({ title, onMenuClick, searchQuery = "", onSearchChange }) => {
     }
 
     setNotifications((prev) =>
-      prev.map((item) => (item.id === notification.id ? { ...item, unread: false } : item)),
+      prev.map((item) => (item.id === notification.id ? { ...item, unread: false } : item))
     );
     setNotifOpen(false);
   };
@@ -188,9 +187,7 @@ const Header = ({ title, onMenuClick, searchQuery = "", onSearchChange }) => {
                     <div>
                       <h4 className="text-sm font-black text-main uppercase">Notifications</h4>
                       <p className="text-[10px] text-muted font-bold uppercase tracking-widest mt-0.5">
-                        {unreadCount > 0
-                          ? `You have ${unreadCount} unread messages`
-                          : "All caught up!"}
+                        {unreadCount > 0 ? `You have ${unreadCount} unread messages` : "All caught up!"}
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-1">
@@ -212,9 +209,7 @@ const Header = ({ title, onMenuClick, searchQuery = "", onSearchChange }) => {
                   </div>
                   <div className="max-h-[350px] overflow-y-auto custom-scrollbar">
                     {notifLoading ? (
-                      <div className="p-8 text-center text-xs text-muted">
-                        Loading notifications...
-                      </div>
+                      <div className="p-8 text-center text-xs text-muted">Loading notifications...</div>
                     ) : notifError ? (
                       <div className="p-8 text-center">
                         <p className="text-xs text-red-500">{notifError}</p>
@@ -238,9 +233,7 @@ const Header = ({ title, onMenuClick, searchQuery = "", onSearchChange }) => {
                         >
                           <p className="text-xs font-bold">{notification.title}</p>
                           <p className="text-xs text-muted mt-1">{notification.message}</p>
-                          <p className="text-[10px] text-muted mt-1">
-                            {formatRelativeTime(notification.createdAt)}
-                          </p>
+                          <p className="text-[10px] text-muted mt-1">{formatRelativeTime(notification.createdAt)}</p>
                         </button>
                       ))
                     ) : (
@@ -256,7 +249,7 @@ const Header = ({ title, onMenuClick, searchQuery = "", onSearchChange }) => {
                 </div>
               )}
             </div>
-            <Themetoggle />
+            <Themetoggle/> 
 
             <div className="relative" ref={dropdownRef}>
               <button
@@ -285,9 +278,7 @@ const Header = ({ title, onMenuClick, searchQuery = "", onSearchChange }) => {
                         alt="User"
                       />
                       <div className="min-w-0">
-                        <h4 className="text-sm font-black text-main truncate leading-tight uppercase">
-                          {displayName}
-                        </h4>
+                        <h4 className="text-sm font-black text-main truncate leading-tight uppercase">{displayName}</h4>
                         <p className="text-[10px] text-muted font-bold truncate opacity-60 mt-0.5 uppercase tracking-widest">
                           {user?.role || "ADMIN"}
                         </p>
@@ -306,8 +297,7 @@ const Header = ({ title, onMenuClick, searchQuery = "", onSearchChange }) => {
                       }}
                       className="flex items-center w-full px-4 py-3.5 text-xs font-bold text-main hover:bg-teal-500 hover:text-white rounded-[1.2rem] transition-all group"
                     >
-                      <User className="mr-3 w-4 h-4 group-hover:scale-110 transition-transform" />{" "}
-                      Profile
+                      <User className="mr-3 w-4 h-4 group-hover:scale-110 transition-transform" /> Profile
                     </button>
                     <button
                       onClick={() => {
@@ -316,8 +306,7 @@ const Header = ({ title, onMenuClick, searchQuery = "", onSearchChange }) => {
                       }}
                       className="flex items-center w-full px-4 py-3.5 text-xs font-bold text-main hover:bg-teal-500 hover:text-white rounded-[1.2rem] transition-all group mt-1"
                     >
-                      <Settings className="mr-3 w-4 h-4 group-hover:rotate-45 transition-transform" />{" "}
-                      Settings
+                      <Settings className="mr-3 w-4 h-4 group-hover:rotate-45 transition-transform" /> Settings
                     </button>
 
                     <div className="my-2 border-t border-border/50 mx-2" />
@@ -326,8 +315,7 @@ const Header = ({ title, onMenuClick, searchQuery = "", onSearchChange }) => {
                       onClick={() => setShowLogoutConfirm(true)}
                       className="flex items-center w-full px-4 py-3.5 text-xs font-black text-red-500 hover:bg-red-500 hover:text-white rounded-[1.2rem] transition-all group"
                     >
-                      <LogOut className="mr-3 w-4 h-4 group-hover:translate-x-1 transition-transform" />{" "}
-                      Logout
+                      <LogOut className="mr-3 w-4 h-4 group-hover:translate-x-1 transition-transform" /> Logout
                     </button>
                   </div>
                 </div>
@@ -344,16 +332,10 @@ const Header = ({ title, onMenuClick, searchQuery = "", onSearchChange }) => {
             <h3 className="text-sm font-black uppercase tracking-tight text-main mb-2">Logout</h3>
             <p className="text-xs text-muted mb-6">Are you sure you want to logout?</p>
             <div className="flex gap-3">
-              <button
-                onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 py-3 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest border border-border hover:bg-canvas-alt transition-all"
-              >
+              <button onClick={() => setShowLogoutConfirm(false)} className="flex-1 py-3 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest border border-border hover:bg-canvas-alt transition-all">
                 Cancel
               </button>
-              <button
-                onClick={confirmLogout}
-                className="flex-1 py-3 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest bg-red-500 text-white hover:bg-red-600 transition-all"
-              >
+              <button onClick={confirmLogout} className="flex-1 py-3 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest bg-red-500 text-white hover:bg-red-600 transition-all">
                 Logout
               </button>
             </div>

@@ -1,47 +1,49 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect,useState } from "react";
 import { Camera } from "lucide-react";
 
 const ProfilePage = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const token = localStorage.getItem("token");
+  const fetchProfile = async () => {
+    try {
+      const token = localStorage.getItem("token");
 
-        const res = await fetch("/api/admin/profile", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+      const res = await fetch("/api/admin/profile", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-        if (!res.ok) {
-          throw new Error("Failed to fetch profile");
-        }
-
-        const data = await res.json();
-        setUser(data);
-      } catch (error) {
-        console.error("Profile fetch error:", error);
-      } finally {
-        setLoading(false);
+      if (!res.ok) {
+        throw new Error("Failed to fetch profile");
       }
-    };
 
-    fetchProfile();
-  }, []);
+      const data = await res.json();
+      setUser(data);
+    } catch (error) {
+      console.error("Profile fetch error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  if (loading) {
-    return <div className="p-8">Loading...</div>;
-  }
+  fetchProfile();
+}, []);
+
+if (loading) {
+  return (
+    <div className="p-8">
+      Loading...
+    </div>
+  );
+} 
 
   const firstName = user?.firstName || user?.name?.split(" ")[0] || "Admin";
   const lastName = user?.lastName || user?.name?.split(" ")[1] || "";
   const email = user?.email || "admin@uptoskills.com";
   const role = user?.role || "Admin";
-  const avatarUrl =
-    user?.avatar_url ||
-    `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(firstName + " " + lastName)}`;
+  const avatarUrl = user?.avatar_url || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(firstName + " " + lastName)}`;
 
   return (
     <div className="p-8">
@@ -54,6 +56,7 @@ const ProfilePage = () => {
       {/* Main Profile Card */}
       <div className="bg-card border border-border/50 rounded-2xl p-6 md:p-8 max-w-4xl shadow-sm">
         <div className="flex flex-col md:flex-row gap-8 mb-6">
+          
           {/* Left Side: Avatar & Name */}
           <div className="flex flex-col items-center min-w-[200px]">
             <div className="relative mb-4 group">
@@ -69,16 +72,16 @@ const ProfilePage = () => {
             <h2 className="text-xl font-semibold text-main capitalize">
               {firstName} {lastName}
             </h2>
-            <p className="text-sm text-teal-500 uppercase tracking-wider font-bold mt-1">{role}</p>
+            <p className="text-sm text-teal-500 uppercase tracking-wider font-bold mt-1">
+              {role}
+            </p>
           </div>
 
           {/* Right Side: Floating Label Inputs (Read Only) */}
           <div className="flex-1 space-y-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div className="relative">
-                <label className="absolute -top-2 left-4 bg-card px-1 text-xs text-muted font-bold">
-                  First Name
-                </label>
+                <label className="absolute -top-2 left-4 bg-card px-1 text-xs text-muted font-bold">First Name</label>
                 <input
                   type="text"
                   value={firstName}
@@ -87,9 +90,7 @@ const ProfilePage = () => {
                 />
               </div>
               <div className="relative">
-                <label className="absolute -top-2 left-4 bg-card px-1 text-xs text-muted font-bold">
-                  Last Name
-                </label>
+                <label className="absolute -top-2 left-4 bg-card px-1 text-xs text-muted font-bold">Last Name</label>
                 <input
                   type="text"
                   value={lastName}
@@ -100,9 +101,7 @@ const ProfilePage = () => {
             </div>
 
             <div className="relative">
-              <label className="absolute -top-2 left-4 bg-card px-1 text-xs text-muted font-bold">
-                Email Address
-              </label>
+              <label className="absolute -top-2 left-4 bg-card px-1 text-xs text-muted font-bold">Email Address</label>
               <input
                 type="email"
                 value={email}
@@ -112,9 +111,7 @@ const ProfilePage = () => {
             </div>
 
             <div className="relative">
-              <label className="absolute -top-2 left-4 bg-card px-1 text-xs text-muted font-bold">
-                Admin Permissions
-              </label>
+              <label className="absolute -top-2 left-4 bg-card px-1 text-xs text-muted font-bold">Admin Permissions</label>
               <input
                 type="text"
                 value="Full Dashboard Access"
@@ -131,20 +128,15 @@ const ProfilePage = () => {
             *Admin details are managed by the system database.
           </p>
           <div className="flex gap-3">
-            <button
-              disabled
-              className="px-6 py-2.5 rounded-xl border border-border bg-transparent text-muted text-sm font-bold opacity-50 cursor-not-allowed"
-            >
+            <button disabled className="px-6 py-2.5 rounded-xl border border-border bg-transparent text-muted text-sm font-bold opacity-50 cursor-not-allowed">
               Cancel
             </button>
-            <button
-              disabled
-              className="px-6 py-2.5 rounded-xl bg-teal-500 text-white text-sm font-bold opacity-50 cursor-not-allowed"
-            >
+            <button disabled className="px-6 py-2.5 rounded-xl bg-teal-500 text-white text-sm font-bold opacity-50 cursor-not-allowed">
               Save Changes
             </button>
           </div>
         </div>
+
       </div>
     </div>
   );

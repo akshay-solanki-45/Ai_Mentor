@@ -1,7 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-import { AppError, UnauthorizedError, forwardError } from "../utils/error.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -9,13 +8,16 @@ const __dirname = path.dirname(__filename);
 // @desc    Get sidebar navigation items
 // @route   GET /api/sidebar/navigation
 // @access  Private
-const getNavigationItems = async (req, res, next) => {
+const getNavigationItems = async (req, res) => {
   try {
     if (!req.user) {
-      return forwardError(next, res, new UnauthorizedError("Not authorized"));
+      return res.status(401).json({ message: "Not authorized" });
     }
 
-    const sidebarPath = path.resolve(__dirname, "../../frontend/public/data/sidebar.json");
+    const sidebarPath = path.resolve(
+      __dirname,
+      "../../frontend/public/data/sidebar.json"
+    );
 
     const sidebarData = await fs.readFile(sidebarPath, "utf8");
 
@@ -23,17 +25,7 @@ const getNavigationItems = async (req, res, next) => {
     try {
       navigationItems = JSON.parse(sidebarData);
     } catch {
-      return forwardError(
-        next,
-        res,
-        new AppError(
-          "Internal Server Error",
-          500,
-          "INTERNAL_SERVER_ERROR",
-          [],
-          "Invalid sidebar configuration",
-        ),
-      );
+      return res.status(500).json({ message: "Invalid sidebar configuration" });
     }
 
     const userRole = req.user.role || "user";
@@ -49,17 +41,7 @@ const getNavigationItems = async (req, res, next) => {
     res.json(filteredItems);
   } catch (error) {
     console.error("SIDEBAR ERROR:", error);
-    return forwardError(
-      next,
-      res,
-      new AppError(
-        "Internal Server Error",
-        500,
-        "INTERNAL_SERVER_ERROR",
-        [],
-        error?.message || "Sidebar navigation lookup failed",
-      ),
-    );
+    res.status(500).json({ message: "Server Error" });
   }
 };
 

@@ -1,14 +1,8 @@
 // routes/contactus.js
 import express from "express";
 import ContactMessage from "../models/Contactmessage.js";
-import { optionalProtect } from "../middleware/authMiddleware.js";
-import { BadRequestError, ValidationError } from "../utils/error.js";
 
 const router = express.Router();
-
-const logContactFailure = (classification) => {
-  console.error(JSON.stringify({ event: "contact_failure", classification }));
-};
 
 /*
 POST /api/contactus
@@ -19,29 +13,40 @@ Body:
   message: "My message here..."
 }
 */
-router.post("/", optionalProtect, async (req, res, next) => {
+router.post("/", async (req, res) => {
   try {
-    let { email, subject, message } = req.body;
+    let { userId, email, subject, message } = req.body;
 
+    // Clean values
     email = email?.trim();
     subject = subject?.trim();
     message = message?.trim();
 
+    // Manual validation
     if (!email) {
-      throw new BadRequestError("Email is required");
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
     }
 
     if (!subject || subject.length < 3) {
-      throw new BadRequestError("Subject must be at least 3 characters");
+      return res.status(400).json({
+        success: false,
+        message: "Subject must be at least 3 characters",
+      });
     }
 
     if (!message || message.length < 10) {
-      throw new BadRequestError("Message must be at least 10 characters");
+      return res.status(400).json({
+        success: false,
+        message: "Message must be at least 10 characters",
+      });
     }
 
-    // Save message in DB - userId derived securely from auth token, not body
+    // Save message in DB
     const savedMessage = await ContactMessage.create({
-      userId: req.user?.id ?? null,
+      userId: userId || null,
       email,
       subject,
       message,
@@ -53,25 +58,20 @@ router.post("/", optionalProtect, async (req, res, next) => {
       data: savedMessage,
     });
   } catch (error) {
-    if (error?.name === "SequelizeValidationError") {
-      logContactFailure("validation_error");
-      const details = (error.errors || []).map((issue) => ({
-        path: issue.path || "email",
-        message: issue.message,
-      }));
-      const validationError = new ValidationError(details, "Request validation failed");
-      return res.status(validationError.statusCode).json({
+    console.error("❌ ContactUs Error:", error);
+
+    // Sequelize validation errors
+    if (error.name === "SequelizeValidationError") {
+      return res.status(400).json({
         success: false,
-        error: {
-          code: validationError.code,
-          message: validationError.message,
-          details: validationError.details,
-        },
+        message: error.errors[0].message,
       });
     }
 
-    logContactFailure("persistence_error");
-    return next(error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while sending message",
+    });
   }
 });
 
